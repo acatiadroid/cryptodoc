@@ -3,3 +3,4 @@ debug/
 Cargo.lock
 *.pdb
 **/*.rs.bk
+*.cryptodoc

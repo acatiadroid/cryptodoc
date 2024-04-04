@@ -100,7 +100,7 @@ pub fn encrypt(data: &[u8], password: &str) -> String {
     let hex_cipher = hex::encode(encrypted);
     let hex_mac = hex::encode(mac);
 
-    let output = format!("initial vector: {}\n\nciphertext: {}\n\nmac: {}\n\n", hex_iv, hex_cipher, hex_mac);
+    let output = format!("{}/{}/{}", hex_iv, hex_cipher, hex_mac);
 
     output
 }

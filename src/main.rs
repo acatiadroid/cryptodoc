@@ -1,9 +1,12 @@
 pub mod crypto;
+pub mod file;
 
-use crypto::{encrypt, decrypt};
-use iced::widget::{
-    button, column, container, row, text, text_editor, text_input,
-};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use crypto::{decrypt, encrypt};
+use file::{get_file_path, load_file, pick_file, save_file, FileError};
+use iced::widget::{button, column, container, row, text, text_editor, text_input};
 use iced::{Command, Element, Length};
 
 pub fn main() -> iced::Result {
@@ -13,7 +16,10 @@ pub fn main() -> iced::Result {
 struct CryptoDoc {
     current_page: Page,
     content: text_editor::Content,
+    doc_name: String,
     password: String,
+    error: Option<FileError>,
+    path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,9 +34,12 @@ enum Message {
     NewDocumentPressed,
     OpenDocumentPressed,
     SaveDocumentPressed,
-    PasswordSubmitted,
+    NewDocumentSubmitted,
+    DocumentInput(String),
     PasswordInput(String),
     Edit(text_editor::Action),
+    FileOpened(Result<(PathBuf, Arc<String>), FileError>),
+    FileSaved(Result<PathBuf, FileError>),
 }
 
 impl CryptoDoc {
@@ -38,7 +47,10 @@ impl CryptoDoc {
         Self {
             current_page: Page::StartPage,
             content: text_editor::Content::new(),
+            doc_name: String::new(),
             password: String::new(),
+            error: None,
+            path: None,
         }
     }
 
@@ -50,20 +62,17 @@ impl CryptoDoc {
                 Command::none()
             }
 
-            Message::OpenDocumentPressed => {
-                self.current_page = Page::DocumentViewer;
-                Command::none()
-            }
+            Message::OpenDocumentPressed => Command::perform(pick_file(), Message::FileOpened),
 
             Message::SaveDocumentPressed => {
                 let text = self.content.text();
 
                 let res = encrypt(text.as_bytes(), &self.password);
 
-                println!("{}", res);
-
-                Command::none()
-                // Command::perform(future, f)
+                Command::perform(
+                    save_file(Some(get_file_path(&self.doc_name)).clone(), res),
+                    Message::FileSaved,
+                )
             }
 
             Message::Edit(action) => {
@@ -72,17 +81,47 @@ impl CryptoDoc {
                 Command::none()
             }
 
+            Message::DocumentInput(content) => {
+                self.doc_name = content;
+
+                Command::none()
+            }
+
             Message::PasswordInput(content) => {
                 self.password = content;
 
                 Command::none()
-            },
-            Message::PasswordSubmitted => {
+            }
+
+            Message::NewDocumentSubmitted => {
                 self.current_page = Page::DocumentViewer;
-                
+
                 Command::none()
             }
 
+            Message::FileOpened(Ok((path, content))) => {
+                self.path = Some(path);
+                self.content = text_editor::Content::with_text(&content);
+                Command::none()
+            }
+
+            Message::FileOpened(Err(error)) => {
+                self.error = Some(error);
+
+                Command::none()
+            }
+
+            Message::FileSaved(Ok(path)) => {
+                self.path = Some(path);
+
+                Command::none()
+            }
+
+            Message::FileSaved(Err(error)) => {
+                self.error = Some(error);
+
+                Command::none()
+            }
         }
     }
 
@@ -106,23 +145,31 @@ impl CryptoDoc {
             }
 
             Page::NewDocumentPage => {
-                let title = text("Enter a document password, then press enter.");
+                let name_title = text("Enter the new document name:");
 
-                let text_input =
-                    text_input("Password", &self.password)   
-                        .padding(10)
-                        .on_input(Message::PasswordInput)
-                        .on_submit(Message::PasswordSubmitted)
-                        .secure(true);
-
-                container(column![controls, title, text_input].spacing(10))
+                let name_input = text_input("Document Name", &self.doc_name)
                     .padding(10)
-                    .center_x()
-                    .center_y()
-                    .into()
+                    .on_input(Message::DocumentInput);
+
+                let pass_title = text("Enter a document password:");
+
+                let pass_input = text_input("Password", &self.password)
+                    .padding(10)
+                    .on_input(Message::PasswordInput)
+                    .secure(true);
+
+                let submit_btn = button("Create").on_press(Message::NewDocumentSubmitted);
+
+                container(
+                    column![controls, name_title, name_input, pass_title, pass_input, submit_btn].spacing(10),
+                )
+                .padding(10)
+                .center_x()
+                .center_y()
+                .into()
             }
             Page::DocumentViewer => {
-                let title = text("Document Editor");
+                let title = text(format!("Current Document: {}", self.doc_name));
                 let editor = text_editor(&self.content)
                     .on_action(Message::Edit)
                     .height(Length::Fill);
