@@ -1,5 +1,8 @@
+pub mod crypto;
+
+use crypto::{encrypt, decrypt};
 use iced::widget::{
-    button, column, container, horizontal_space, row, text, text_editor, text_input,
+    button, column, container, row, text, text_editor, text_input,
 };
 use iced::{Command, Element, Length};
 
@@ -52,7 +55,16 @@ impl CryptoDoc {
                 Command::none()
             }
 
-            Message::SaveDocumentPressed => Command::none(),
+            Message::SaveDocumentPressed => {
+                let text = self.content.text();
+
+                let res = encrypt(text.as_bytes(), &self.password);
+
+                println!("{}", res);
+
+                Command::none()
+                // Command::perform(future, f)
+            }
 
             Message::Edit(action) => {
                 self.content.perform(action);
@@ -66,7 +78,7 @@ impl CryptoDoc {
                 Command::none()
             },
             Message::PasswordSubmitted => {
-                println!("{}", self.password);
+                self.current_page = Page::DocumentViewer;
                 
                 Command::none()
             }
@@ -88,29 +100,34 @@ impl CryptoDoc {
 
                 container(column![controls, placeholder_text].spacing(10))
                     .padding(10)
+                    .center_x()
+                    .center_y()
                     .into()
             }
 
             Page::NewDocumentPage => {
+                let title = text("Enter a document password, then press enter.");
+
                 let text_input =
-                    text_input("Enter document password here...", &self.password)   
+                    text_input("Password", &self.password)   
                         .padding(10)
                         .on_input(Message::PasswordInput)
                         .on_submit(Message::PasswordSubmitted)
                         .secure(true);
 
-                container(column![controls, text_input].spacing(10))
+                container(column![controls, title, text_input].spacing(10))
                     .padding(10)
                     .center_x()
                     .center_y()
                     .into()
             }
             Page::DocumentViewer => {
+                let title = text("Document Editor");
                 let editor = text_editor(&self.content)
                     .on_action(Message::Edit)
                     .height(Length::Fill);
 
-                container(column![controls, horizontal_space(), editor].spacing(10))
+                container(column![controls, title, editor].spacing(10))
                     .padding(10)
                     .center_x()
                     .center_y()

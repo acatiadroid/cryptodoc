@@ -9,3 +9,6 @@ edition = "2021"
 iced = { git = "https://github.com/iced-rs/iced.git", features = ["debug", "highlighter"]}
 tokio = { version = "1.32", features = ["fs"] }
 rfd = "0.12"
+hex = "0.4.3"
+rust-crypto = "0.2.0"
+rand = "0.8.5"
