@@ -68,6 +68,10 @@ impl CryptoDoc {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::NewDocumentPressed => {
+                self.content = text_editor::Content::new();
+                self.doc_name = String::new();
+                self.password = String::new();
+                
                 self.current_page = Page::NewDocumentPage;
 
                 Command::none()
@@ -111,8 +115,10 @@ impl CryptoDoc {
             }
 
             Message::FileOpened(Ok((path, content))) => {
+                self.password = String::new();
+
                 self.path = Some(path.clone());
-                // let decrypted_text = decrypt(&content.as_str(), &self.password);
+
                 self.encrypted_content = (&content.as_str()).to_string();
 
                 self.doc_name = pathbuf_to_string(&path);
@@ -128,8 +134,8 @@ impl CryptoDoc {
                 Command::none()
             }
 
-            Message::NewDocumentPasswordInput(content) => {
-                self.password = content;
+            Message::NewDocumentPasswordInput(password) => {
+                self.password = password;
 
                 Command::none()
             }
