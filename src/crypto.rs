@@ -1,9 +1,9 @@
-use std::error::Error;
-use std::{io, str};
-use std::io::ErrorKind;
-use std::iter::repeat;
 use crypto::aead::{AeadDecryptor, AeadEncryptor};
 use crypto::aes_gcm::AesGcm;
+use std::error::Error;
+use std::io::ErrorKind;
+use std::iter::repeat;
+use std::{io, str};
 
 fn split_iv_data_mac(orig: &str) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), Box<dyn Error>> {
     let split: Vec<&str> = orig.split('/').into_iter().collect();
@@ -26,7 +26,7 @@ fn split_iv_data_mac(orig: &str) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), Box<dyn 
     }
 
     let data = data_res.unwrap();
-    
+
     let mac_res = hex::decode(split[2]);
 
     if mac_res.is_err() {
@@ -63,7 +63,7 @@ fn get_iv(size: usize) -> Vec<u8> {
     iv
 }
 
-pub fn decrypt(iv_data_mac: &str, key: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decrypt(iv_data_mac: &str, key: &str) -> Result<(bool, Vec<u8>), Box<dyn Error>> {
     let (iv, data, mac) = split_iv_data_mac(iv_data_mac)?;
 
     let key = get_valid_key(key);
@@ -76,11 +76,7 @@ pub fn decrypt(iv_data_mac: &str, key: &str) -> Result<Vec<u8>, Box<dyn Error>> 
 
     let result = decipher.decrypt(&data, &mut dst, &mac);
 
-    if result {println!("Successfull decryption");}
-
-    println!("Decrypted: {}", str::from_utf8(&dst).unwrap());
-
-    Ok(dst)
+    Ok((result, dst))
 }
 
 pub fn encrypt(data: &[u8], password: &str) -> String {

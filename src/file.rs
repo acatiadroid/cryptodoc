@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -9,10 +9,20 @@ pub enum FileError {
 }
 
 pub fn get_file_path(file_name: &String) -> PathBuf {
-    PathBuf::from(format!("{}\\documents\\{}.cryptodoc", env!("CARGO_MANIFEST_DIR"), file_name))
+    PathBuf::from(format!(
+        "{}\\documents\\{}.cryptodoc",
+        env!("CARGO_MANIFEST_DIR"),
+        file_name
+    ))
 }
 
-pub async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), FileError> {
+pub fn pathbuf_to_string(path: &PathBuf) -> String {
+    path.to_str()
+        .expect("Failed to convert path to str")
+        .to_string()
+}
+
+async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), FileError> {
     let contents = tokio::fs::read_to_string(&path)
         .await
         .map(Arc::new)
