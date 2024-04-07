@@ -68,7 +68,7 @@ pub fn decrypt(iv_data_mac: &str, key: &str) -> Result<(bool, Vec<u8>), Box<dyn 
 
     let key = get_valid_key(key);
 
-    let key_size = crypto::aes::KeySize::KeySize128;
+    let key_size = crypto::aes::KeySize::KeySize256;
 
     let mut decipher = AesGcm::new(key_size, &key, &iv, &[]);
 
@@ -80,7 +80,7 @@ pub fn decrypt(iv_data_mac: &str, key: &str) -> Result<(bool, Vec<u8>), Box<dyn 
 }
 
 pub fn encrypt(data: &[u8], password: &str) -> String {
-    let key_size = crypto::aes::KeySize::KeySize128;
+    let key_size = crypto::aes::KeySize::KeySize256;
 
     let valid_key = get_valid_key(password);
     let iv = get_iv(12);
