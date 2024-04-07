@@ -4,3 +4,4 @@ Cargo.lock
 *.pdb
 **/*.rs.bk
 *.cryptodoc
+!Example Document.cryptodoc

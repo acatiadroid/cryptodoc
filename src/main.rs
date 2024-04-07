@@ -9,11 +9,15 @@ use crypto::{decrypt, encrypt};
 use file::{get_file_path, pathbuf_to_string, pick_file, save_file, FileError};
 use toast::{Status, Toast};
 
-use iced::widget::{button, column, container, row, text, text_editor, text_input};
-use iced::{Command, Element, Length};
+use iced::widget::{button, column, container, row, text, text_editor, text_input, tooltip};
+use iced::{Command, Element, Font, Length, Subscription};
+use iced::keyboard;
 
 pub fn main() -> iced::Result {
-    iced::run("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
+    iced::program("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
+        .subscription(CryptoDoc::subscription)
+        .font(include_bytes!("../fonts/icons.ttf").as_slice())
+        .run()
 }
 
 struct CryptoDoc {
@@ -25,6 +29,7 @@ struct CryptoDoc {
     error: Option<FileError>,
     path: Option<PathBuf>,
     toasts: Vec<Toast>,
+    is_dirty: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +67,7 @@ impl CryptoDoc {
             password: String::new(),
             error: None,
             path: None,
+            is_dirty: false,
         }
     }
 
@@ -80,17 +86,36 @@ impl CryptoDoc {
             Message::OpenDocumentPressed => Command::perform(pick_file(), Message::FileOpened),
 
             Message::SaveDocumentPressed => {
-                let text = self.content.text();
+                if self.doc_name == String::new() {
+                    self.toasts.push(Toast {
+                        title: "Failed".into(),
+                        body: "Open a document first.".into(),
+                        status: Status::Danger,
+                    });
 
-                let res = encrypt(text.as_bytes(), &self.password);
+                    Command::none()
+                } else {
 
-                Command::perform(
-                    save_file(Some(get_file_path(&self.doc_name)).clone(), res),
-                    Message::FileSaved,
-                )
+                    let text = self.content.text();
+
+                    let res = encrypt(text.as_bytes(), &self.password);
+
+                    self.toasts.push(Toast {
+                        title: "Success".into(),
+                        body: "Document was saved.".into(),
+                        status: Status::Success,
+                    });
+
+                    Command::perform(
+                        save_file(Some(get_file_path(&self.doc_name)).clone(), res),
+                        Message::FileSaved,
+                    )
+                }
             }
 
             Message::Edit(action) => {
+                self.is_dirty = self.is_dirty || action.is_edit();
+
                 self.content.perform(action);
 
                 Command::none()
@@ -115,6 +140,7 @@ impl CryptoDoc {
             }
 
             Message::FileOpened(Ok((path, content))) => {
+                self.is_dirty = false;
                 self.password = String::new();
 
                 self.path = Some(path.clone());
@@ -168,6 +194,7 @@ impl CryptoDoc {
 
             Message::FileSaved(Ok(path)) => {
                 self.path = Some(path);
+                self.is_dirty = false;
 
                 Command::none()
             }
@@ -188,9 +215,9 @@ impl CryptoDoc {
 
     fn view(&self) -> Element<Message> {
         let controls = row![
-            button("New Doc").on_press(Message::NewDocumentPressed),
-            button("Open Doc").on_press(Message::OpenDocumentPressed),
-            button("Save Doc").on_press(Message::SaveDocumentPressed),
+            action(new_icon(), "New File", Some(Message::NewDocumentPressed)),
+            action(open_icon(), "Open File", Some(Message::OpenDocumentPressed)),
+            action(save_icon(), "Save File", self.is_dirty.then_some(Message::SaveDocumentPressed)),
         ]
         .spacing(10);
 
@@ -270,10 +297,58 @@ impl CryptoDoc {
             }
         }
     }
+
+    fn subscription(&self) -> Subscription<Message> {
+        keyboard::on_key_press(|key, modifiers| match key.as_ref() {
+            keyboard::Key::Character("s") if modifiers.command() => {
+                Some(Message::SaveDocumentPressed)
+            }
+            _ => None,
+        })
+    }
 }
 
 impl Default for CryptoDoc {
     fn default() -> Self {
-        CryptoDoc::new()
+        Self::new()
     }
 }
+
+fn action<'a>(
+    content: Element<'a, Message>,
+    label: &'a str,
+    on_press: Option<Message>,
+ ) -> Element<'a, Message> {
+    let action = button(container(content).width(30).center_x());
+
+    if let Some(on_press) = on_press {
+        tooltip(
+            action.on_press(on_press),
+            label,
+            tooltip::Position::FollowCursor,
+        )
+        .style(container::rounded_box)
+        .into()
+    } else {
+        action.style(button::secondary).into()
+    }
+}
+
+fn new_icon<'a, Message>() -> Element<'a, Message> {
+    icon('\u{0e800}')
+}
+
+fn save_icon<'a, Message>() -> Element<'a, Message> {
+    icon('\u{0e801}')
+}
+
+fn open_icon<'a, Message>() -> Element<'a, Message> {
+    icon('\u{0f115}')
+}
+
+fn icon<'a, Message>(codepoint: char) -> Element<'a, Message> {
+    const ICON_FONT: Font = Font::with_name("editor-icons");
+
+    text(codepoint).font(ICON_FONT).into()
+}
+
