@@ -42,6 +42,16 @@ pub async fn pick_file() -> Result<(PathBuf, Arc<String>), FileError> {
     load_file(handle.path().to_owned()).await
 }
 
+pub async fn pick_folder() -> Result<PathBuf, FileError> {
+    let handle = rfd::AsyncFileDialog::new()
+        .set_title("Select folder")
+        .pick_folder()
+        .await
+        .ok_or(FileError::DialogClosed)?;
+
+    Ok(handle.path().to_owned())
+}
+
 pub async fn save_file(path: Option<PathBuf>, text: String) -> Result<PathBuf, FileError> {
     let path = if let Some(path) = path {
         path

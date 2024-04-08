@@ -1,22 +1,31 @@
-pub mod crypto;
-pub mod file;
-pub mod toast;
+mod crypto;
+mod file;
+mod icons;
+mod toast;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use crypto::{decrypt, encrypt};
-use file::{get_file_path, pathbuf_to_string, pick_file, save_file, FileError};
+use file::{get_file_path, pathbuf_to_string, pick_file, pick_folder, save_file, FileError};
+use icons::{action, home_icon, new_icon, open_icon, save_icon, settings_icon};
 use toast::{Status, Toast};
 
-use iced::widget::{button, column, container, row, text, text_editor, text_input, tooltip};
-use iced::{Command, Element, Font, Length, Subscription};
+use iced::highlighter;
 use iced::keyboard;
+use iced::widget::{
+    button, column, container, horizontal_space, pick_list, row, text, text_editor, text_input,
+    Space,
+};
+use iced::Theme;
+use iced::{Command, Element, Length, Subscription};
 
 pub fn main() -> iced::Result {
     iced::program("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
         .subscription(CryptoDoc::subscription)
         .font(include_bytes!("../fonts/icons.ttf").as_slice())
+        .theme(CryptoDoc::theme)
+        .window_size((900.0, 700.0))
         .run()
 }
 
@@ -30,6 +39,8 @@ struct CryptoDoc {
     path: Option<PathBuf>,
     toasts: Vec<Toast>,
     is_dirty: bool,
+    save_path: String,
+    theme: highlighter::Theme,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +49,7 @@ enum Page {
     NewDocumentPage,
     DocumentViewer,
     AskPassword,
+    Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -45,8 +57,11 @@ enum Message {
     NewDocumentPressed,
     OpenDocumentPressed,
     SaveDocumentPressed,
+    SettingsPressed,
+    HomePressed,
     NewDocumentSubmitted,
     TryDecrypt,
+    SelectFolderPressed,
     CloseToast(usize),
     DocumentInput(String),
     NewDocumentPasswordInput(String),
@@ -54,6 +69,8 @@ enum Message {
     Edit(text_editor::Action),
     FileOpened(Result<(PathBuf, Arc<String>), FileError>),
     FileSaved(Result<PathBuf, FileError>),
+    FolderSelected(Result<PathBuf, FileError>),
+    ThemeSelected(highlighter::Theme),
 }
 
 impl CryptoDoc {
@@ -68,17 +85,43 @@ impl CryptoDoc {
             error: None,
             path: None,
             is_dirty: false,
+            save_path: String::new(),
+            theme: highlighter::Theme::SolarizedDark,
         }
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ThemeSelected(theme) => {
+                self.theme = theme;
+
+                Command::none()
+            }
+
+            Message::HomePressed => {
+                self.doc_name = String::new();
+                self.content = text_editor::Content::new();
+                self.password = String::new();
+                self.current_page = Page::StartPage;
+
+                Command::none()
+            }
             Message::NewDocumentPressed => {
                 self.content = text_editor::Content::new();
                 self.doc_name = String::new();
                 self.password = String::new();
-                
+
                 self.current_page = Page::NewDocumentPage;
+
+                Command::none()
+            }
+
+            Message::SelectFolderPressed => {
+                Command::perform(pick_folder(), Message::FolderSelected)
+            }
+
+            Message::SettingsPressed => {
+                self.current_page = Page::Settings;
 
                 Command::none()
             }
@@ -95,7 +138,6 @@ impl CryptoDoc {
 
                     Command::none()
                 } else {
-
                     let text = self.content.text();
 
                     let res = encrypt(text.as_bytes(), &self.password);
@@ -139,6 +181,20 @@ impl CryptoDoc {
                 Command::none()
             }
 
+            Message::FolderSelected(Ok(path)) => {
+                self.save_path = pathbuf_to_string(&path);
+
+                Command::none()
+            }
+            Message::FolderSelected(Err(_)) => {
+                self.toasts.push(Toast {
+                    title: "Failed".into(),
+                    body: "Couldn't select specified folder.".into(),
+                    status: Status::Danger,
+                });
+
+                Command::none()
+            }
             Message::FileOpened(Ok((path, content))) => {
                 self.is_dirty = false;
                 self.password = String::new();
@@ -215,13 +271,49 @@ impl CryptoDoc {
 
     fn view(&self) -> Element<Message> {
         let controls = row![
+            action(home_icon(), "Home", Some(Message::HomePressed)),
+            Space::new(25, 0),
             action(new_icon(), "New File", Some(Message::NewDocumentPressed)),
             action(open_icon(), "Open File", Some(Message::OpenDocumentPressed)),
-            action(save_icon(), "Save File", self.is_dirty.then_some(Message::SaveDocumentPressed)),
+            action(
+                save_icon(),
+                "Save File",
+                self.is_dirty.then_some(Message::SaveDocumentPressed)
+            ),
+            horizontal_space(),
+            action(settings_icon(), "Settings", Some(Message::SettingsPressed))
         ]
         .spacing(10);
 
         match self.current_page {
+            Page::Settings => {
+                let save_title = text("Directory to save documents into:");
+
+                let save_button = button("Select Path").on_press(Message::SelectFolderPressed);
+
+                let current_path = text(format!("Current Path: {}", &self.save_path));
+
+                let save_row = row![save_button, current_path].spacing(10);
+
+                let theme_title = text("Theme:");
+
+                let theme_list = pick_list(
+                    highlighter::Theme::ALL,
+                    Some(self.theme),
+                    Message::ThemeSelected,
+                )
+                .text_size(14)
+                .padding([5, 10]);
+
+                let content = container(
+                    column![controls, save_title, save_row, theme_title, theme_list]
+                        .spacing(10)
+                )
+                .padding(10);
+
+                toast::Manager::new(content, &self.toasts, Message::CloseToast).into()
+            }
+
             Page::StartPage => {
                 let placeholder_text = text("Click to get started.");
 
@@ -306,6 +398,14 @@ impl CryptoDoc {
             _ => None,
         })
     }
+
+    fn theme(&self) -> Theme {
+        if self.theme.is_dark() {
+            Theme::Dark
+        } else {
+            Theme::Light
+        }
+    }
 }
 
 impl Default for CryptoDoc {
@@ -313,42 +413,3 @@ impl Default for CryptoDoc {
         Self::new()
     }
 }
-
-fn action<'a>(
-    content: Element<'a, Message>,
-    label: &'a str,
-    on_press: Option<Message>,
- ) -> Element<'a, Message> {
-    let action = button(container(content).width(30).center_x());
-
-    if let Some(on_press) = on_press {
-        tooltip(
-            action.on_press(on_press),
-            label,
-            tooltip::Position::FollowCursor,
-        )
-        .style(container::rounded_box)
-        .into()
-    } else {
-        action.style(button::secondary).into()
-    }
-}
-
-fn new_icon<'a, Message>() -> Element<'a, Message> {
-    icon('\u{0e800}')
-}
-
-fn save_icon<'a, Message>() -> Element<'a, Message> {
-    icon('\u{0e801}')
-}
-
-fn open_icon<'a, Message>() -> Element<'a, Message> {
-    icon('\u{0f115}')
-}
-
-fn icon<'a, Message>(codepoint: char) -> Element<'a, Message> {
-    const ICON_FONT: Font = Font::with_name("editor-icons");
-
-    text(codepoint).font(ICON_FONT).into()
-}
-
