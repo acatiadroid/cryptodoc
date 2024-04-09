@@ -15,8 +15,9 @@ pub fn action<'a>(
     content: Element<'a, Message>,
     label: &'a str,
     on_press: Option<Message>,
+    home: bool,
 ) -> Element<'a, Message> {
-    let action = button(container(content).width(30).center_x());
+    let action = button(container(content).width(if home {15} else {30}).center_x());
 
     if let Some(on_press) = on_press {
         tooltip(

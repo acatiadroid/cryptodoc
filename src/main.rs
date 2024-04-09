@@ -15,7 +15,6 @@ use iced::highlighter;
 use iced::keyboard;
 use iced::widget::{
     button, column, container, horizontal_space, pick_list, row, text, text_editor, text_input,
-    Space,
 };
 use iced::Theme;
 use iced::{Command, Element, Length, Subscription};
@@ -271,17 +270,17 @@ impl CryptoDoc {
 
     fn view(&self) -> Element<Message> {
         let controls = row![
-            action(home_icon(), "Home", Some(Message::HomePressed)),
-            Space::new(25, 0),
-            action(new_icon(), "New File", Some(Message::NewDocumentPressed)),
-            action(open_icon(), "Open File", Some(Message::OpenDocumentPressed)),
+            action(home_icon(), "Home", Some(Message::HomePressed), true),
+            action(new_icon(), "New File", Some(Message::NewDocumentPressed), false),
+            action(open_icon(), "Open File", Some(Message::OpenDocumentPressed), false),
             action(
                 save_icon(),
                 "Save File",
-                self.is_dirty.then_some(Message::SaveDocumentPressed)
+                self.is_dirty.then_some(Message::SaveDocumentPressed),
+                false
             ),
             horizontal_space(),
-            action(settings_icon(), "Settings", Some(Message::SettingsPressed))
+            action(settings_icon(), "Settings", Some(Message::SettingsPressed), false)
         ]
         .spacing(10);
 
