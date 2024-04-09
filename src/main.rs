@@ -7,7 +7,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crypto::{decrypt, encrypt};
-use file::{get_file_path, pathbuf_to_string, pick_file, pick_folder, save_file, FileError};
+use file::get_file_path;
+use file::{get_save_file_path, pathbuf_to_string, pick_file, pick_folder, save_file, FileError};
 use icons::{action, home_icon, new_icon, open_icon, save_icon, settings_icon};
 use toast::{Status, Toast};
 
@@ -68,12 +69,16 @@ enum Message {
     Edit(text_editor::Action),
     FileOpened(Result<(PathBuf, Arc<String>), FileError>),
     FileSaved(Result<PathBuf, FileError>),
+    FolderPathFileSaved(Result<PathBuf, FileError>),
     FolderSelected(Result<PathBuf, FileError>),
     ThemeSelected(highlighter::Theme),
 }
 
 impl CryptoDoc {
     fn new() -> Self {
+        let save_path =
+            std::fs::read_to_string(get_save_file_path()).unwrap_or_else(|_| String::new());
+
         Self {
             toasts: vec![],
             current_page: Page::StartPage,
@@ -84,7 +89,7 @@ impl CryptoDoc {
             error: None,
             path: None,
             is_dirty: false,
-            save_path: String::new(),
+            save_path,
             theme: highlighter::Theme::SolarizedDark,
         }
     }
@@ -141,16 +146,11 @@ impl CryptoDoc {
 
                     let res = encrypt(text.as_bytes(), &self.password);
 
-                    self.toasts.push(Toast {
-                        title: "Success".into(),
-                        body: "Document was saved.".into(),
-                        status: Status::Success,
-                    });
+                    let path = get_file_path().unwrap_or_else(|_| PathBuf::new());
+                    let mut full_path = path.join(&self.doc_name);
+                    full_path.set_extension("cryptodoc");
 
-                    Command::perform(
-                        save_file(Some(get_file_path(&self.doc_name)).clone(), res),
-                        Message::FileSaved,
-                    )
+                    Command::perform(save_file(Some(full_path), res), Message::FileSaved)
                 }
             }
 
@@ -183,7 +183,10 @@ impl CryptoDoc {
             Message::FolderSelected(Ok(path)) => {
                 self.save_path = pathbuf_to_string(&path);
 
-                Command::none()
+                Command::perform(
+                    save_file(Some(get_save_file_path()), pathbuf_to_string(&path)),
+                    Message::FolderPathFileSaved,
+                )
             }
             Message::FolderSelected(Err(_)) => {
                 self.toasts.push(Toast {
@@ -251,15 +254,46 @@ impl CryptoDoc {
                 self.path = Some(path);
                 self.is_dirty = false;
 
+                self.toasts.push(Toast {
+                    title: "Success".into(),
+                    body: "Document has been saved.".into(),
+                    status: Status::Success,
+                });
+
                 Command::none()
             }
 
             Message::FileSaved(Err(error)) => {
                 self.error = Some(error);
 
+                self.toasts.push(Toast {
+                    title: "Failed".into(),
+                    body: format!("Failed to save: {:?}", &self.error).into(),
+                    status: Status::Danger,
+                });
+
                 Command::none()
             }
 
+            Message::FolderPathFileSaved(Ok(_)) => {
+                self.toasts.push(Toast {
+                    title: "Success".into(),
+                    body: "Document save path has been saved.".into(),
+                    status: Status::Success,
+                });
+
+                Command::none()
+            }
+
+            Message::FolderPathFileSaved(Err(_)) => {
+                self.toasts.push(Toast {
+                    title: "Failed".into(),
+                    body: "Couldn't save document path.".into(),
+                    status: Status::Danger,
+                });
+
+                Command::none()
+            }
             Message::CloseToast(index) => {
                 self.toasts.remove(index);
 
@@ -271,8 +305,18 @@ impl CryptoDoc {
     fn view(&self) -> Element<Message> {
         let controls = row![
             action(home_icon(), "Home", Some(Message::HomePressed), true),
-            action(new_icon(), "New File", Some(Message::NewDocumentPressed), false),
-            action(open_icon(), "Open File", Some(Message::OpenDocumentPressed), false),
+            action(
+                new_icon(),
+                "New File",
+                Some(Message::NewDocumentPressed),
+                false
+            ),
+            action(
+                open_icon(),
+                "Open File",
+                Some(Message::OpenDocumentPressed),
+                false
+            ),
             action(
                 save_icon(),
                 "Save File",
@@ -280,7 +324,12 @@ impl CryptoDoc {
                 false
             ),
             horizontal_space(),
-            action(settings_icon(), "Settings", Some(Message::SettingsPressed), false)
+            action(
+                settings_icon(),
+                "Settings",
+                Some(Message::SettingsPressed),
+                false
+            )
         ]
         .spacing(10);
 
@@ -305,8 +354,7 @@ impl CryptoDoc {
                 .padding([5, 10]);
 
                 let content = container(
-                    column![controls, save_title, save_row, theme_title, theme_list]
-                        .spacing(10)
+                    column![controls, save_title, save_row, theme_title, theme_list].spacing(10),
                 )
                 .padding(10);
 

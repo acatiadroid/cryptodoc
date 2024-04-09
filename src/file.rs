@@ -8,12 +8,13 @@ pub enum FileError {
     IOFailed(io::ErrorKind),
 }
 
-pub fn get_file_path(file_name: &String) -> PathBuf {
-    PathBuf::from(format!(
-        "{}\\documents\\{}.cryptodoc",
-        env!("CARGO_MANIFEST_DIR"),
-        file_name
-    ))
+pub fn get_file_path() -> io::Result<PathBuf> {
+    let save_path_content = std::fs::read_to_string("./save_path.dat")?;
+    Ok(PathBuf::from(save_path_content))
+}
+
+pub fn get_save_file_path() -> PathBuf {
+    PathBuf::from("./save_path.dat")
 }
 
 pub fn pathbuf_to_string(path: &PathBuf) -> String {
@@ -22,7 +23,7 @@ pub fn pathbuf_to_string(path: &PathBuf) -> String {
         .to_string()
 }
 
-async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), FileError> {
+pub async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), FileError> {
     let contents = tokio::fs::read_to_string(&path)
         .await
         .map(Arc::new)
