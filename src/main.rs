@@ -7,25 +7,45 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crypto::{decrypt, encrypt};
-use file::get_file_path;
-use file::{get_save_file_path, pathbuf_to_string, pick_file, pick_folder, save_file, FileError};
+use file::{
+    get_file_path, get_save_file_path, pathbuf_to_string, pick_file, pick_folder, save_file,
+    FileError,
+};
 use icons::{action, home_icon, new_icon, open_icon, save_icon, settings_icon};
 use toast::{Status, Toast};
 
-use iced::highlighter;
 use iced::keyboard;
 use iced::widget::{
     button, column, container, horizontal_space, pick_list, row, text, text_editor, text_input,
 };
+use iced::window;
 use iced::Theme;
+use iced::{highlighter, Settings};
 use iced::{Command, Element, Length, Subscription};
+use image::GenericImageView;
 
 pub fn main() -> iced::Result {
+    static ICON: &[u8] = include_bytes!("../assets/app_icon.png");
+
+    let image = image::load_from_memory(ICON).unwrap();
+    let (width, height) = image.dimensions();
+    let rgba = image.into_rgba8();
+    let icon = window::icon::from_rgba(rgba.into_raw(), width, height).unwrap();
+
+    let settings = Settings {
+        window: iced::window::Settings {
+            icon: Some(icon),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
     iced::program("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
         .subscription(CryptoDoc::subscription)
-        .font(include_bytes!("../fonts/icons.ttf").as_slice())
+        .font(include_bytes!("../assets/icons.ttf").as_slice())
         .theme(CryptoDoc::theme)
         .window_size((900.0, 700.0))
+        .settings(settings)
         .run()
 }
 
