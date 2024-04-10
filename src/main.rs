@@ -42,10 +42,10 @@ pub fn main() -> iced::Result {
 
     iced::program("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
         .subscription(CryptoDoc::subscription)
-        .font(include_bytes!("../assets/icons.ttf").as_slice())
         .theme(CryptoDoc::theme)
-        .window_size((900.0, 700.0))
         .settings(settings)
+        .window_size((900.0, 700.0))
+        .font(include_bytes!("../assets/icons.ttf").as_slice())
         .run()
 }
 
