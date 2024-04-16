@@ -5,7 +5,7 @@ Allows the user to password protect text documents, and possible to exchange bet
 ## Running
 Run the following command:
 ```
-cargo run
+cargo run --release
 ```
 
 ## Example Document
