@@ -20,8 +20,8 @@ use iced::widget::{
 };
 use iced::window;
 use iced::Theme;
-use iced::{highlighter, Settings};
-use iced::{Command, Element, Length, Subscription};
+use iced::highlighter;
+use iced::{Task, Element, Length, Subscription};
 use image::GenericImageView;
 
 pub fn main() -> iced::Result {
@@ -32,18 +32,15 @@ pub fn main() -> iced::Result {
     let rgba = image.into_rgba8();
     let icon = window::icon::from_rgba(rgba.into_raw(), width, height).unwrap();
 
-    let settings = Settings {
-        window: iced::window::Settings {
-            icon: Some(icon),
-            ..Default::default()
-        },
+    let win_settings = window::Settings {
+        icon: Some(icon),
         ..Default::default()
     };
 
-    iced::program("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
+    iced::application("CryptoDoc", CryptoDoc::update, CryptoDoc::view)
         .subscription(CryptoDoc::subscription)
         .theme(CryptoDoc::theme)
-        .settings(settings)
+        .window(win_settings)
         .window_size((900.0, 700.0))
         .font(include_bytes!("../assets/icons.ttf").as_slice())
         .run()
@@ -114,12 +111,12 @@ impl CryptoDoc {
         }
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ThemeSelected(theme) => {
                 self.theme = theme;
 
-                Command::none()
+                Task::none()
             }
 
             Message::HomePressed => {
@@ -128,7 +125,7 @@ impl CryptoDoc {
                 self.password = String::new();
                 self.current_page = Page::StartPage;
 
-                Command::none()
+                Task::none()
             }
             Message::NewDocumentPressed => {
                 self.content = text_editor::Content::new();
@@ -137,20 +134,20 @@ impl CryptoDoc {
 
                 self.current_page = Page::NewDocumentPage;
 
-                Command::none()
+                Task::none()
             }
 
             Message::SelectFolderPressed => {
-                Command::perform(pick_folder(), Message::FolderSelected)
+                Task::perform(pick_folder(), Message::FolderSelected)
             }
 
             Message::SettingsPressed => {
                 self.current_page = Page::Settings;
 
-                Command::none()
+                Task::none()
             }
 
-            Message::OpenDocumentPressed => Command::perform(pick_file(), Message::FileOpened),
+            Message::OpenDocumentPressed => Task::perform(pick_file(), Message::FileOpened),
 
             Message::SaveDocumentPressed => {
                 if self.doc_name == String::new() {
@@ -160,7 +157,7 @@ impl CryptoDoc {
                         status: Status::Danger,
                     });
 
-                    Command::none()
+                    Task::none()
                 } else {
                     let text = self.content.text();
 
@@ -170,7 +167,7 @@ impl CryptoDoc {
                     let mut full_path = path.join(&self.doc_name);
                     full_path.set_extension("cryptodoc");
 
-                    Command::perform(save_file(Some(full_path), res), Message::FileSaved)
+                    Task::perform(save_file(Some(full_path), res), Message::FileSaved)
                 }
             }
 
@@ -179,31 +176,31 @@ impl CryptoDoc {
 
                 self.content.perform(action);
 
-                Command::none()
+                Task::none()
             }
 
             Message::DocumentInput(content) => {
                 self.doc_name = content;
 
-                Command::none()
+                Task::none()
             }
 
             Message::PasswordInput(content) => {
                 self.password = content;
 
-                Command::none()
+                Task::none()
             }
 
             Message::NewDocumentSubmitted => {
                 self.current_page = Page::DocumentViewer;
 
-                Command::none()
+                Task::none()
             }
 
             Message::FolderSelected(Ok(path)) => {
                 self.save_path = pathbuf_to_string(&path);
 
-                Command::perform(
+                Task::perform(
                     save_file(Some(get_save_file_path()), pathbuf_to_string(&path)),
                     Message::FolderPathFileSaved,
                 )
@@ -215,7 +212,7 @@ impl CryptoDoc {
                     status: Status::Danger,
                 });
 
-                Command::none()
+                Task::none()
             }
             Message::FileOpened(Ok((path, content))) => {
                 self.is_dirty = false;
@@ -229,19 +226,19 @@ impl CryptoDoc {
 
                 self.current_page = Page::AskPassword;
 
-                Command::none()
+                Task::none()
             }
 
             Message::FileOpened(Err(error)) => {
                 self.error = Some(error);
 
-                Command::none()
+                Task::none()
             }
 
             Message::NewDocumentPasswordInput(password) => {
                 self.password = password;
 
-                Command::none()
+                Task::none()
             }
 
             Message::TryDecrypt => {
@@ -267,7 +264,7 @@ impl CryptoDoc {
                     }
                 }
 
-                Command::none()
+                Task::none()
             }
 
             Message::FileSaved(Ok(path)) => {
@@ -280,7 +277,7 @@ impl CryptoDoc {
                     status: Status::Success,
                 });
 
-                Command::none()
+                Task::none()
             }
 
             Message::FileSaved(Err(error)) => {
@@ -292,7 +289,7 @@ impl CryptoDoc {
                     status: Status::Danger,
                 });
 
-                Command::none()
+                Task::none()
             }
 
             Message::FolderPathFileSaved(Ok(_)) => {
@@ -302,7 +299,7 @@ impl CryptoDoc {
                     status: Status::Success,
                 });
 
-                Command::none()
+                Task::none()
             }
 
             Message::FolderPathFileSaved(Err(_)) => {
@@ -312,12 +309,12 @@ impl CryptoDoc {
                     status: Status::Danger,
                 });
 
-                Command::none()
+                Task::none()
             }
             Message::CloseToast(index) => {
                 self.toasts.remove(index);
 
-                Command::none()
+                Task::none()
             }
         }
     }
@@ -386,8 +383,8 @@ impl CryptoDoc {
 
                 let content = container(column![controls, placeholder_text].spacing(10))
                     .padding(10)
-                    .center_x()
-                    .center_y();
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill);
 
                 toast::Manager::new(content, &self.toasts, Message::CloseToast).into()
             }
@@ -413,8 +410,8 @@ impl CryptoDoc {
                         .spacing(10),
                 )
                 .padding(10)
-                .center_x()
-                .center_y();
+                .center_x(Length::Fill)
+                .center_y(Length::Fill);
 
                 toast::Manager::new(content, &self.toasts, Message::CloseToast).into()
             }
@@ -426,8 +423,8 @@ impl CryptoDoc {
 
                 let content = container(column![controls, title, editor].spacing(10))
                     .padding(10)
-                    .center_x()
-                    .center_y();
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill);
 
                 toast::Manager::new(content, &self.toasts, Message::CloseToast).into()
             }
@@ -449,8 +446,8 @@ impl CryptoDoc {
                 let content =
                     container(column![controls, title, pass_input, submit_btn].spacing(10))
                         .padding(10)
-                        .center_x()
-                        .center_y();
+                        .center_x(Length::Fill)
+                        .center_y(Length::Fill);
 
                 toast::Manager::new(content, &self.toasts, Message::CloseToast).into()
             }

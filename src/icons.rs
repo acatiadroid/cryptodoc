@@ -1,6 +1,6 @@
 use iced::{
     widget::{button, container, text, tooltip},
-    Element, Font,
+    Element, Font, Length,
 };
 
 use crate::Message;
@@ -20,7 +20,7 @@ pub fn action<'a>(
     let action = button(
         container(content)
             .width(if home { 15 } else { 30 })
-            .center_x(),
+            .center_x(Length::Fill),
     );
 
     if let Some(on_press) = on_press {
